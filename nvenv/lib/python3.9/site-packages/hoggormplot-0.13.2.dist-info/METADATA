@@ -1,0 +1,60 @@
+Metadata-Version: 2.1
+Name: hoggormplot
+Version: 0.13.2
+Summary: Plotting functions for visualisation of data analysis results from the hoggorm package
+Home-page: https://github.com/olivertomic/hoggormPlot
+Author: Oliver Tomic
+Author-email: oliver.tomic@nmbu.no
+License: BSD License
+Download-URL: https://pypi.python.org/pypi/hoggormplot
+Keywords: statistic,education,science
+Platform: any
+Classifier: Natural Language :: English
+Classifier: Development Status :: 4 - Beta
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Science/Research
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Requires-Python: 
+Requires-Dist: numpy (>=1.9)
+
+.. image:: https://readthedocs.org/projects/hoggormplot/badge/?version=latest
+
+hoggormplot
+===========
+
+hoggormplot is a python package that contains plotting functions for visualisation of data analysis results from the `hoggorm`_ package. 
+
+.. _hoggorm: http://hoggorm.readthedocs.io/en/latest
+
+
+Installation
+------------
+
+.. code-block:: bash
+
+	pip install hoggormplot
+
+
+Requirements
+------------
+
+- hoggorm
+- matplotlib
+
+
+Documentation
+-------------
+
+- Documentation at `Read the Docs`_
+
+.. _Read the Docs: http://hoggormplot.readthedocs.io/en/latest
+
+
