@@ -128,7 +128,7 @@ def main():
 
     # Try loading data; show helpful error if missing
     try:
-        df = load_data("../data/open-meteo-subset.csv")
+        df = load_data("data/open-meteo-subset.csv")
     except FileNotFoundError:
         st.sidebar.error("CSV file not found. Put open-meteo-subset.csv into the `data/` folder.")
         df = pd.DataFrame()  # empty placeholder
