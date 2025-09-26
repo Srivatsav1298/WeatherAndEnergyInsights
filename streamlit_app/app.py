@@ -66,24 +66,19 @@ def page_table(df):
 
 def page_plots(df):
     st.header("Interactive plots")
-    st.write("Choose a column (or All) and a subset of the index (months/dates).")
-    
-    # Ensure the index is properly parsed and not empty
+    st.write("Choose a column (or All), a subset of the index, or a dual-axis plot.")
+
     if df.index.empty:
         st.error("Index appears empty. Check CSV and index parsing.")
         return
 
-    # Prepare string representation of index for slider options
+    # Prepare index range for select_slider
     idx_options = [str(x) for x in df.index]
     if len(idx_options) == 0:
         st.error("Index appears empty. Check CSV and index parsing.")
         return
 
-    # Select column or all
-    column_options = ["All"] + list(df.columns)
-    chosen = st.selectbox("Choose a single column or All", column_options, index=0)
-
-    # Select a subset range using select_slider (defaults to first index only)
+    # Range slider
     start = idx_options[0]
     end = idx_options[0]
     sel = st.select_slider("Select index range (start → end)", options=idx_options, value=(start, end))
@@ -92,53 +87,60 @@ def page_plots(df):
     if start_idx > end_idx:
         start_idx, end_idx = end_idx, start_idx
 
-    # Filtered dataframe
+    # Slice the dataframe
     df_filtered = df.iloc[start_idx:end_idx+1]
+    st.markdown(f"Showing data from **{idx_options[start_idx]}** to **{idx_options[end_idx]}** ({len(df_filtered)} rows).")
 
-    st.markdown(f"Showing indices from **{idx_options[start_idx]}** to **{idx_options[end_idx]}** ({len(df_filtered)} rows).")
+    # Tabbed interface: single/multiple vs dual-axis
+    tab1, tab2 = st.tabs(["📊 Single/All Columns", "🪞 Dual-Axis Plot"])
 
-    if chosen == "All":
-        # If multiple numeric columns exist, normalize to show them on the same axis
-        df_num = df_filtered.select_dtypes(include='number')
-        if df_num.shape[1] == 0:
-            st.warning("No numeric columns to plot for 'All'. Please choose a single column.")
+    with tab1:
+        column_options = ["All"] + list(df.columns)
+        chosen = st.selectbox("Choose a single column or All", column_options, index=0)
+
+        if chosen == "All":
+            df_num = df_filtered.select_dtypes(include='number')
+            if df_num.shape[1] == 0:
+                st.warning("No numeric columns to plot for 'All'.")
+            else:
+                df_norm = (df_num - df_num.min()) / (df_num.max() - df_num.min())
+                st.line_chart(df_norm)
+                st.caption("All numeric columns normalized to [0,1] for comparison.")
         else:
-            # Normalize to [0,1] for visibility across different scales
-            df_norm = (df_num - df_num.min()) / (df_num.max() - df_num.min())
-            st.line_chart(df_norm)
-            st.caption("All numeric columns normalized to [0,1] to allow visual comparison.")
-    else:
-        # Single column plot with labels
-        try:
-            series = pd.to_numeric(df_filtered[chosen], errors='coerce')
-            st.line_chart(series)
-            st.caption(f"Plot for column: {chosen}")
-        except Exception as e:
-            st.error(f"Could not plot column {chosen}: {e}")
+            try:
+                series = pd.to_numeric(df_filtered[chosen], errors='coerce')
+                st.line_chart(series)
+                st.caption(f"Plot for column: {chosen}")
+            except Exception as e:
+                st.error(f"Could not plot column {chosen}: {e}")
 
-def page_about():
-    st.header("About / Test page")
-    st.write("Dummy page for part 1. Replace with further content in later parts of the project.")
-    st.write("Include links to GitHub and Streamlit app in the final notebook.")
+    with tab2:
+        numeric_cols = df_filtered.select_dtypes(include='number').columns.tolist()
+        if len(numeric_cols) < 2:
+            st.warning("Need at least two numeric columns for dual-axis plot.")
+        else:
+            col1 = st.selectbox("Left Y-axis variable", numeric_cols, index=0)
+            col2 = st.selectbox("Right Y-axis variable", numeric_cols, index=1)
 
-# ---------- main ----------
-def main():
-    st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Home", "Data Table", "Plots", "About/Test"])
-    try:
-        df = load_data("data/open-meteo-subset.csv")
-    except FileNotFoundError:
-        st.sidebar.error("CSV file not found. Put open-meteo-subset.csv into the `data/` folder.")
-        df = pd.DataFrame()  # empty placeholder
+            if col1 != col2:
+                import matplotlib.pyplot as plt
 
-    if page == "Home":
-        page_home()
-    elif page == "Data Table":
-        page_table(df)
-    elif page == "Plots":
-        page_plots(df)
-    else:
-        page_about()
+                fig, ax1 = plt.subplots(figsize=(10, 5))
 
-if __name__ == "__main__":
-    main()
+                # Left Y-axis
+                ax1.plot(df_filtered.index, df_filtered[col1], 'b-', label=col1)
+                ax1.set_xlabel('Index')
+                ax1.set_ylabel(col1, color='b')
+                ax1.tick_params(axis='y', labelcolor='b')
+
+                # Right Y-axis
+                ax2 = ax1.twinx()
+                ax2.plot(df_filtered.index, df_filtered[col2], 'g-', label=col2)
+                ax2.set_ylabel(col2, color='g')
+                ax2.tick_params(axis='y', labelcolor='g')
+
+                plt.title(f"Dual-axis Plot: {col1} vs {col2}")
+                plt.grid(True)
+                st.pyplot(fig)
+            else:
+                st.info("Please select two different columns for dual-axis plotting.")
