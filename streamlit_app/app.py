@@ -20,10 +20,10 @@ def load_data(path: str):
             st.warning("Warning: Some date values could not be parsed correctly. Check the index.")
         
         # Show the first few rows to check the data (only in initial run/rerun)
-        # st.write("Preview of data:")
-        # st.write(df.head()) 
-        
+        st.write("Preview of data:")
+        st.write(df.head()) 
         return df
+    
     except Exception as e:
         st.error(f"Error loading CSV: {e}")
         return pd.DataFrame()
@@ -76,14 +76,9 @@ def page_plots(df):
     if df.index.empty:
         st.error("Index appears empty. Check CSV and index parsing.")
         return
-
-    # Prepare index range for select_slider
-    # Use only monthly/daily boundaries for a clearer slider, or use a smaller subset
-    # For simplicity, we use a small, representative subset of the index for the slider
     idx_options_full = [str(x) for x in df.index]
     
-    # Use a smaller, representative sample for slider options to avoid a massive list
-    # e.g., using every 100th index, or just the first 100 entries
+    
     if len(idx_options_full) > 100:
         idx_options = idx_options_full[::len(idx_options_full)//100 + 1]
         if idx_options_full[-1] not in idx_options:
@@ -102,7 +97,7 @@ def page_plots(df):
     # Ensure the slider value is a tuple (start, end)
     sel = st.select_slider("Select index range (start → end)", options=idx_options, value=(start, end))
     
-    # Find the actual indices in the full list
+    
     full_start_idx = idx_options_full.index(sel[0])
     full_end_idx = idx_options_full.index(sel[1])
 
@@ -175,14 +170,11 @@ def page_plots(df):
                 st.info("Please select two different columns for dual-axis plotting.")
 
 # ----------------- MAIN EXECUTION BLOCK -----------------
-# This block is what your previous code was missing. It sets up the app layout and navigation.
 def main():
-    # Set the page configuration for a wider view and expanded sidebar
+    
     st.set_page_config(layout="wide", initial_sidebar_state="expanded")
     
-    # Define the data path
-    # Ensure this file (open-meteo-subset.csv) is located in a 'data' folder
-    # relative to where you run the streamlit command.
+   
     DATA_PATH = "data/open-meteo-subset.csv"
     
     # Load the data using the cached function
@@ -191,7 +183,6 @@ def main():
     # Sidebar configuration
     st.sidebar.title("Navigation")
     
-    # Define the pages and map them to their functions
     pages = {
         "Home": page_home,
         "Data Table": page_table,
