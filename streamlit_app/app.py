@@ -125,8 +125,6 @@ def page_about():
 def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("Go to", ["Home", "Data Table", "Plots", "About/Test"])
-
-    # Try loading data; show helpful error if missing
     try:
         df = load_data("data/open-meteo-subset.csv")
     except FileNotFoundError:
