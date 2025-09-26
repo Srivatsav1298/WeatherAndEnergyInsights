@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 # Custom date parser to handle ISO format
 def custom_date_parser(x):
@@ -11,15 +12,16 @@ def custom_date_parser(x):
 def load_data(path: str):
     try:
         # custom date parser to handle the 'T' in date strings
+        # index_col=0 assumes the first column is the datetime index
         df = pd.read_csv(path, index_col=0, parse_dates=True, infer_datetime_format=True, date_parser=custom_date_parser)
         
         # Check if the index was parsed correctly
         if df.index.isnull().any():
             st.warning("Warning: Some date values could not be parsed correctly. Check the index.")
         
-        # Show the first few rows to check the data
-        st.write("Preview of data:")
-        st.write(df.head())  # Show the first few rows for inspection
+        # Show the first few rows to check the data (only in initial run/rerun)
+        # st.write("Preview of data:")
+        # st.write(df.head()) 
         
         return df
     except Exception as e:
@@ -58,7 +60,10 @@ def page_table(df):
                 st.subheader(colname)
                 # line chart for each column
                 try:
-                    st.line_chart(df[colname])
+                    # Filter data to a manageable size for 'small chart' interpretation, e.g., the first month
+                    # Assuming an index frequency that makes the first 700 rows roughly representative of a short period
+                    # Adjusting to a small number of rows just for a 'small' chart example:
+                    st.line_chart(df[colname].head(100))
                 except Exception as e:
                     st.write("Cannot plot:", e)
     else:
@@ -73,23 +78,41 @@ def page_plots(df):
         return
 
     # Prepare index range for select_slider
-    idx_options = [str(x) for x in df.index]
-    if len(idx_options) == 0:
-        st.error("Index appears empty. Check CSV and index parsing.")
+    # Use only monthly/daily boundaries for a clearer slider, or use a smaller subset
+    # For simplicity, we use a small, representative subset of the index for the slider
+    idx_options_full = [str(x) for x in df.index]
+    
+    # Use a smaller, representative sample for slider options to avoid a massive list
+    # e.g., using every 100th index, or just the first 100 entries
+    if len(idx_options_full) > 100:
+        idx_options = idx_options_full[::len(idx_options_full)//100 + 1]
+        if idx_options_full[-1] not in idx_options:
+            idx_options.append(idx_options_full[-1])
+    else:
+         idx_options = idx_options_full
+         
+    if len(idx_options) < 2:
+        st.error("Index needs at least two points for range selection.")
         return
 
-    # Range slider
+    # Range slider setup
     start = idx_options[0]
-    end = idx_options[0]
+    end = idx_options[-1]
+    
+    # Ensure the slider value is a tuple (start, end)
     sel = st.select_slider("Select index range (start → end)", options=idx_options, value=(start, end))
-    start_idx = idx_options.index(sel[0])
-    end_idx = idx_options.index(sel[1])
-    if start_idx > end_idx:
-        start_idx, end_idx = end_idx, start_idx
+    
+    # Find the actual indices in the full list
+    full_start_idx = idx_options_full.index(sel[0])
+    full_end_idx = idx_options_full.index(sel[1])
+
+    # Ensure start is before end
+    if full_start_idx > full_end_idx:
+        full_start_idx, full_end_idx = full_end_idx, full_start_idx
 
     # Slice the dataframe
-    df_filtered = df.iloc[start_idx:end_idx+1]
-    st.markdown(f"Showing data from **{idx_options[start_idx]}** to **{idx_options[end_idx]}** ({len(df_filtered)} rows).")
+    df_filtered = df.iloc[full_start_idx:full_end_idx+1]
+    st.markdown(f"Showing data from **{idx_options_full[full_start_idx]}** to **{idx_options_full[full_end_idx]}** ({len(df_filtered)} rows).")
 
     # Tabbed interface: single/multiple vs dual-axis
     tab1, tab2 = st.tabs(["📊 Single/All Columns", "🪞 Dual-Axis Plot"])
@@ -103,6 +126,7 @@ def page_plots(df):
             if df_num.shape[1] == 0:
                 st.warning("No numeric columns to plot for 'All'.")
             else:
+                # Normalization is crucial for plotting all columns together
                 df_norm = (df_num - df_num.min()) / (df_num.max() - df_num.min())
                 st.line_chart(df_norm)
                 st.caption("All numeric columns normalized to [0,1] for comparison.")
@@ -123,7 +147,8 @@ def page_plots(df):
             col2 = st.selectbox("Right Y-axis variable", numeric_cols, index=1)
 
             if col1 != col2:
-                import matplotlib.pyplot as plt
+                # Use Matplotlib for dual-axis plots as Streamlit's built-in charts 
+                # do not natively support this configuration easily.
 
                 fig, ax1 = plt.subplots(figsize=(10, 5))
 
@@ -138,9 +163,59 @@ def page_plots(df):
                 ax2.plot(df_filtered.index, df_filtered[col2], 'g-', label=col2)
                 ax2.set_ylabel(col2, color='g')
                 ax2.tick_params(axis='y', labelcolor='g')
-
+                
+                # Add title and grid
                 plt.title(f"Dual-axis Plot: {col1} vs {col2}")
+                fig.tight_layout()
                 plt.grid(True)
+                
+                # Display the Matplotlib figure in Streamlit
                 st.pyplot(fig)
             else:
                 st.info("Please select two different columns for dual-axis plotting.")
+
+# ----------------- MAIN EXECUTION BLOCK -----------------
+# This block is what your previous code was missing. It sets up the app layout and navigation.
+def main():
+    # Set the page configuration for a wider view and expanded sidebar
+    st.set_page_config(layout="wide", initial_sidebar_state="expanded")
+    
+    # Define the data path
+    # Ensure this file (open-meteo-subset.csv) is located in a 'data' folder
+    # relative to where you run the streamlit command.
+    DATA_PATH = "data/open-meteo-subset.csv"
+    
+    # Load the data using the cached function
+    df = load_data(DATA_PATH)
+
+    # Sidebar configuration
+    st.sidebar.title("Navigation")
+    
+    # Define the pages and map them to their functions
+    pages = {
+        "Home": page_home,
+        "Data Table": page_table,
+        "Plots": page_plots,
+        "About/Test": show_header # A simple placeholder page
+    }
+    
+    # Create the radio button selector for navigation
+    selection = st.sidebar.radio("Go to", list(pages.keys()))
+    
+    st.sidebar.markdown("---")
+    st.sidebar.info("This is the sidebar for the IND320 dashboard demo.")
+    
+    # Page Rendering: Call the function corresponding to the user's selection
+    if selection == "Data Table" or selection == "Plots":
+        # These pages require the DataFrame
+        if not df.empty:
+            pages[selection](df)
+        else:
+            st.error("Cannot display page: Data loading failed.")
+    else:
+        # Home and About pages do not require the DataFrame
+        pages[selection]()
+
+# Standard Python entry point
+if __name__ == '__main__':
+    main()
