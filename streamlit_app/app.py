@@ -168,6 +168,14 @@ def page_plots(df):
                 st.pyplot(fig)
             else:
                 st.info("Please select two different columns for dual-axis plotting.")
+                
+def page_about():
+    st.header("About / Test Page")
+    st.write("Welcome to the 4th Page")
+
+    st.markdown("### Project Links")
+    st.markdown("**GitHub Repository:** [WeatherInsights](https://github.com/Srivatsav1298/WeatherInsights)")
+    st.markdown("**Streamlit App:** [weatherinsights.streamlit.app](https://weatherinsights.streamlit.app)")
 
 # ----------------- MAIN EXECUTION BLOCK -----------------
 def main():
@@ -187,7 +195,7 @@ def main():
         "Home": page_home,
         "Data Table": page_table,
         "Plots": page_plots,
-        "About/Test": show_header # A simple placeholder page
+        "About/Test": page_about
     }
     
     # Create the radio button selector for navigation
