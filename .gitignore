@@ -1,1 +1,2 @@
-nvenv/
+nvenv/.DS_Store
+notebooks/*.pdf
