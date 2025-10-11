@@ -25,3 +25,4 @@ kaleido
 lipsum
 pymongo
 streamlit
+tqdm
