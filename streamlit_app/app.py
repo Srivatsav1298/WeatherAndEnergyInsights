@@ -213,8 +213,8 @@ def page_mongo_dashboard():
 def page_about():
     st.header("About / Test Page")
     st.write("Project links and credits.")
-    st.markdown("**GitHub Repo:** [WeatherAndEnergyInsights](https://weatherandenergy.streamlit.app/)") 
-    st.markdown("**Streamlit App:** [weatherandenergy.streamlit.app/](https://weatherandenergy.streamlit.app/)")
+    st.markdown("**GitHub Repo:** [WeatherAndEnergyInsights](https://github.com/Srivatsav1298/WeatherAndEnergyInsights/tree/part2-spark-cassandra/)") 
+    st.markdown("**Streamlit App:** [weatherandenergyinsights.streamlit.app](https://weatherandenergyinsights.streamlit.app//)")
 
 # --------------- Main ----------------
 def main():
