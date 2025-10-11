@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -138,15 +139,18 @@ def page_mongo_dashboard():
     st.header("Production Dashboard — MongoDB (Part 2)")
     st.write("Visualizing Elhub 2021 production data stored in MongoDB.")
 
-    # --- connect securely using password.txt ---
-    try:
-        # Load password from file (⚠️ ensure the path is correct)
-        pwd_path = '/Users/vatsavabbu/Desktop/NMBU /Courses/IND320/IND320-App/password.txt'
-        with open(pwd_path, 'r') as f:
-            password = f.read().strip()
+    # Retrieve MongoDB password from the environment variable
+    mongo_password = os.getenv('MONGO_PASSWORD')  # Get the password from environment
 
-        username = "abbuvatsav"  # 🔁 Replace this with your MongoDB username
-        mongo_uri = f"mongodb+srv://{username}:{password}@cluster0.klxry.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    # Check if the password is retrieved
+    if not mongo_password:
+        st.error("MongoDB password is missing. Please set the environment variable MONGO_PASSWORD.")
+        return
+
+    # Proceed to connect to MongoDB
+    try:
+        username = "abbuvatsav"  # Replace with your MongoDB username
+        mongo_uri = f"mongodb+srv://{username}:{mongo_password}@cluster0.klxry.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
         client = MongoClient(mongo_uri)
         collection = client["Cluster0"]["elhub_production_data"]
