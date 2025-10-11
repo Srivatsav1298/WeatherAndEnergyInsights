@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -139,8 +138,7 @@ def page_mongo_dashboard():
     st.header("Production Dashboard — MongoDB (Part 2)")
     st.write("Visualizing Elhub 2021 production data stored in MongoDB.")
 
-    # Retrieve MongoDB password from the environment variable
-    mongo_password = os.getenv('MONGO_PASSWORD')  # Get the password from environment
+    mongo_password = st.secrets["mongo"]["password"]
 
     # Check if the password is retrieved
     if not mongo_password:
