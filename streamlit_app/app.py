@@ -18,10 +18,6 @@ def load_data(path: str):
         # Check if the index was parsed correctly
         if df.index.isnull().any():
             st.warning("Warning: Some date values could not be parsed correctly. Check the index.")
-        
-        # Show the first few rows to check the data (only in initial run/rerun)
-        st.write("Preview of data:")
-        st.write(df.head()) 
         return df
     
     except Exception as e:
@@ -46,70 +42,64 @@ def page_home():
     """)
 
 def page_table(df):
-    st.header("Data Table")
-    st.write("Interactive table of the imported CSV (first 200 rows shown).")
-    st.dataframe(df.head(200))
+    st.header("📊 Data Table — Interactive Overview")
 
-    st.markdown("### Row-wise small charts for the first few columns (interpreting 'first month')")
-    if len(df.columns) > 0:
-        # Determine the number of small charts to display
-        n_small = min(4, len(df.columns))
-        cols = st.columns(n_small)
-        for i, colname in enumerate(df.columns[:n_small]):
-            with cols[i]:
-                st.subheader(colname)
-                # line chart for each column
-                try:
-                    # Filter data to a manageable size for 'small chart' interpretation, e.g., the first month
-                    # Assuming an index frequency that makes the first 700 rows roughly representative of a short period
-                    # Adjusting to a small number of rows just for a 'small' chart example:
-                    st.line_chart(df[colname].head(100))
-                except Exception as e:
-                    st.write("Cannot plot:", e)
-    else:
-        st.write("No columns to display charts. Please check the dataset.")
+    st.markdown("""
+    Below is an **interactive data table** showing all variables.  
+    Each numeric column includes a **sparkline (mini line chart)** for quick trend visualization  
+    using `st.column_config.LineChartColumn()`.
+    """)
+
+    # Detect numeric and non-numeric columns
+    numeric_cols = df.select_dtypes(include='number').columns.tolist()
+    non_numeric_cols = [col for col in df.columns if col not in numeric_cols]
+
+    # Build column config with different display types
+    column_config = {}
+    for col in numeric_cols:
+        column_config[col] = st.column_config.LineChartColumn(
+            col,
+            help=f"Trend of {col} over time",
+            y_min=float(df[col].min()),
+            y_max=float(df[col].max())
+        )
+    for col in non_numeric_cols:
+        column_config[col] = st.column_config.Column(
+            col,
+            help=f"Non-numeric column: {col}"
+        )
+
+    # Display the DataFrame with visual enhancement
+    st.dataframe(
+        df.head(200),  # limit preview for performance
+        column_config=column_config,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.caption("ℹ️ Hover over sparkline charts to see trends per column. Only first 200 rows shown.")
+
 
 def page_plots(df):
     st.header("Interactive plots")
-    st.write("Choose a column (or All), a subset of the index, or a dual-axis plot.")
+    st.write("Choose a column (or All), and a month to visualize.")
 
     if df.index.empty:
         st.error("Index appears empty. Check CSV and index parsing.")
         return
-    idx_options_full = [str(x) for x in df.index]
-    
-    
-    if len(idx_options_full) > 100:
-        idx_options = idx_options_full[::len(idx_options_full)//100 + 1]
-        if idx_options_full[-1] not in idx_options:
-            idx_options.append(idx_options_full[-1])
-    else:
-         idx_options = idx_options_full
-         
-    if len(idx_options) < 2:
-        st.error("Index needs at least two points for range selection.")
+
+    # ---- New Month-Based Slider ----
+    if not pd.api.types.is_datetime64_any_dtype(df.index):
+        st.error("Index is not datetime. Please check your data.")
         return
 
-    # Range slider setup
-    start = idx_options[0]
-    end = idx_options[-1]
-    
-    # Ensure the slider value is a tuple (start, end)
-    sel = st.select_slider("Select index range (start → end)", options=idx_options, value=(start, end))
-    
-    
-    full_start_idx = idx_options_full.index(sel[0])
-    full_end_idx = idx_options_full.index(sel[1])
+    df["month_name"] = df.index.strftime("%B")
+    months = df["month_name"].unique().tolist()
+    month_choice = st.select_slider("Select Month", options=months, value=months[0])
+    df_filtered = df[df["month_name"] == month_choice]
+    st.markdown(f"### Showing data for **{month_choice}** ({len(df_filtered)} rows)")
 
-    # Ensure start is before end
-    if full_start_idx > full_end_idx:
-        full_start_idx, full_end_idx = full_end_idx, full_start_idx
-
-    # Slice the dataframe
-    df_filtered = df.iloc[full_start_idx:full_end_idx+1]
-    st.markdown(f"Showing data from **{idx_options_full[full_start_idx]}** to **{idx_options_full[full_end_idx]}** ({len(df_filtered)} rows).")
-
-    # Tabbed interface: single/multiple vs dual-axis
+    # ---- Existing Plot Tabs ----
     tab1, tab2 = st.tabs(["📊 Single/All Columns", "🪞 Dual-Axis Plot"])
 
     with tab1:
@@ -121,7 +111,6 @@ def page_plots(df):
             if df_num.shape[1] == 0:
                 st.warning("No numeric columns to plot for 'All'.")
             else:
-                # Normalization is crucial for plotting all columns together
                 df_norm = (df_num - df_num.min()) / (df_num.max() - df_num.min())
                 st.line_chart(df_norm)
                 st.caption("All numeric columns normalized to [0,1] for comparison.")
@@ -142,32 +131,20 @@ def page_plots(df):
             col2 = st.selectbox("Right Y-axis variable", numeric_cols, index=1)
 
             if col1 != col2:
-                # Use Matplotlib for dual-axis plots as Streamlit's built-in charts 
-                # do not natively support this configuration easily.
-
                 fig, ax1 = plt.subplots(figsize=(10, 5))
-
-                # Left Y-axis
                 ax1.plot(df_filtered.index, df_filtered[col1], 'b-', label=col1)
                 ax1.set_xlabel('Index')
                 ax1.set_ylabel(col1, color='b')
-                ax1.tick_params(axis='y', labelcolor='b')
-
-                # Right Y-axis
                 ax2 = ax1.twinx()
                 ax2.plot(df_filtered.index, df_filtered[col2], 'g-', label=col2)
                 ax2.set_ylabel(col2, color='g')
-                ax2.tick_params(axis='y', labelcolor='g')
-                
-                # Add title and grid
                 plt.title(f"Dual-axis Plot: {col1} vs {col2}")
                 fig.tight_layout()
                 plt.grid(True)
-                
-                # Display the Matplotlib figure in Streamlit
                 st.pyplot(fig)
             else:
                 st.info("Please select two different columns for dual-axis plotting.")
+
                 
 def page_about():
     st.header("About / Test Page")
