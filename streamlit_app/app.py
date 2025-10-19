@@ -152,7 +152,7 @@ def page_about():
 
     st.markdown("### Project Links")
     st.markdown("**GitHub Repository:** [WeatherInsights](https://github.com/Srivatsav1298/WeatherInsights)")
-    st.markdown("**Streamlit App:** [weatherinsights.streamlit.app](https://weatherinsights.streamlit.app)")
+    st.markdown("**Streamlit App:** [weatherinsights.streamlit.app](https://github.com/Srivatsav1298/WeatherAndEnergyInsights/tree/main)")
 
 # ----------------- MAIN EXECUTION BLOCK -----------------
 def main():
