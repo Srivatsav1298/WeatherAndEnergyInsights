@@ -151,8 +151,8 @@ def page_about():
     st.write("Welcome to the 4th Page")
 
     st.markdown("### Project Links")
-    st.markdown("**GitHub Repository:** [WeatherInsights](https://github.com/Srivatsav1298/WeatherInsights)")
-    st.markdown("**Streamlit App:** [weatherinsights.streamlit.app](https://github.com/Srivatsav1298/WeatherAndEnergyInsights/tree/main)")
+    st.markdown("**GitHub Repository:** [https://github.com/Srivatsav1298/WeatherAndEnergyInsights/tree/main](https://github.com/Srivatsav1298/WeatherAndEnergyInsights/tree/main)")
+    st.markdown("**Streamlit App:** [https://weatherandenergyinsightspart1.streamlit.app](https://weatherandenergyinsightspart1.streamlit.app)")
 
 # ----------------- MAIN EXECUTION BLOCK -----------------
 def main():
