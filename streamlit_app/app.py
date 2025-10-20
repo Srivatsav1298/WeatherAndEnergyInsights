@@ -55,7 +55,10 @@ def page_table(df):
                 "Variable": col,
                 "First month sparkline": first_month[col].values,
                 "Count (first month)": first_month[col].count(),
-                "Mean (first month)": round(first_month[col].mean(), 4)
+                "Mean (first month)": round(first_month[col].mean(), 4),
+                "Min (first month)": round(first_month[col].min(), 4),
+                "Max (first month)": round(first_month[col].max(), 4),
+                "Std Dev": round(first_month[col].std(), 4)
             })
 
     summary_df = pd.DataFrame(summary_data)
@@ -71,13 +74,17 @@ def page_table(df):
                 y_max=float(df.max().max())
             ),
             "Count (first month)": st.column_config.NumberColumn("Count (first month)"),
-            "Mean (first month)": st.column_config.NumberColumn("Mean (first month)")
+            "Mean (first month)": st.column_config.NumberColumn("Mean (first month)"),
+            "Min (first month)": st.column_config.NumberColumn("Min (first month)"),
+            "Max (first month)": st.column_config.NumberColumn("Max (first month)"),
+            "Std Dev": st.column_config.NumberColumn("Std Dev")
         },
         use_container_width=True,
         hide_index=True
     )
 
-    st.caption("ℹ️ Summary table shows variable trends, counts, and means for the first month only.")
+    st.caption("ℹ️ Summary table shows variable trends, counts, and descriptive statistics for the first month only.")
+
 
 
 
