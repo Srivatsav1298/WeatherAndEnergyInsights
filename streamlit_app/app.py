@@ -42,42 +42,43 @@ def page_home():
     """)
 
 def page_table(df):
-    st.header("📊 Data Table — Interactive Overview")
+    st.header("📈 Variables summary for the first month (2020-01)")
 
-    st.markdown("""
-    Below is an **interactive data table** showing all variables.  
-    Each numeric column includes a **sparkline (mini line chart)** for quick trend visualization  
-    using `st.column_config.LineChartColumn()`.
-    """)
+    # --- Filter for first month (January) ---
+    first_month = df[df.index.month == 1]
 
-    # Detect numeric and non-numeric columns
-    numeric_cols = df.select_dtypes(include='number').columns.tolist()
-    non_numeric_cols = [col for col in df.columns if col not in numeric_cols]
+    # --- Build summary statistics ---
+    summary_data = []
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            summary_data.append({
+                "Variable": col,
+                "First month sparkline": first_month[col].values,
+                "Count (first month)": first_month[col].count(),
+                "Mean (first month)": round(first_month[col].mean(), 4)
+            })
 
-    # Build column config with different display types
-    column_config = {}
-    for col in numeric_cols:
-        column_config[col] = st.column_config.LineChartColumn(
-            col,
-            help=f"Trend of {col} over time",
-            y_min=float(df[col].min()),
-            y_max=float(df[col].max())
-        )
-    for col in non_numeric_cols:
-        column_config[col] = st.column_config.Column(
-            col,
-            help=f"Non-numeric column: {col}"
-        )
+    summary_df = pd.DataFrame(summary_data)
 
-    # Display the DataFrame with visual enhancement
+    # --- Display compact summary table with sparklines ---
     st.dataframe(
-        df.head(200),  # limit preview for performance
-        column_config=column_config,
+        summary_df,
+        column_config={
+            "Variable": st.column_config.TextColumn("Variable"),
+            "First month sparkline": st.column_config.LineChartColumn(
+                "First month sparkline",
+                y_min=float(df.min().min()),
+                y_max=float(df.max().max())
+            ),
+            "Count (first month)": st.column_config.NumberColumn("Count (first month)"),
+            "Mean (first month)": st.column_config.NumberColumn("Mean (first month)")
+        },
         use_container_width=True,
         hide_index=True
     )
 
-    st.caption("ℹ️ Hover over sparkline charts to see trends per column. Only first 200 rows shown.")
+    st.caption("ℹ️ Summary table shows variable trends, counts, and means for the first month only.")
+
 
 
 def page_plots(df):
