@@ -20,8 +20,6 @@ def load_data(path: str):
         )
         if df.index.isnull().any():
             st.warning("Warning: Some date values could not be parsed correctly. Check the index.")
-        st.write("Preview of data:")
-        st.write(df.head())
         return df
     except Exception as e:
         st.error(f"Error loading CSV: {e}")
@@ -49,89 +47,122 @@ def page_home():
 
 # --------------- Page 2: Data Table ----------------
 def page_table(df):
-    st.header("Data Table (CSV)")
-    st.dataframe(df.head(200))
+    st.header("📈 Variables summary for the first month (2020-01)")
 
-    st.markdown("### Small charts for first columns")
-    if len(df.columns) > 0:
-        n_small = min(4, len(df.columns))
-        cols = st.columns(n_small)
-        for i, colname in enumerate(df.columns[:n_small]):
-            with cols[i]:
-                st.subheader(colname)
-                try:
-                    st.line_chart(df[colname].head(100))
-                except Exception as e:
-                    st.write("Cannot plot:", e)
-    else:
-        st.write("No columns to display charts.")
+    # --- Filter for first month (January) ---
+    first_month = df[df.index.month == 1]
+
+    # --- Build summary statistics ---
+    summary_data = []
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            series = first_month[col].dropna()
+            summary_data.append({
+                "Variable": col,
+                "First month sparkline": series.values,
+                "Count (first month)": series.count(),
+                "Mean (first month)": round(series.mean(), 4),
+                "Min (first month)": round(series.min(), 4),
+                "Max (first month)": round(series.max(), 4),
+                "Std Dev": round(series.std(), 4),
+                "Range": round(series.max() - series.min(), 4)
+            })
+
+    summary_df = pd.DataFrame(summary_data)
+
+    # --- Display compact summary table with adaptive sparklines ---
+    column_config = {
+        "Variable": st.column_config.TextColumn("Variable"),
+        "First month sparkline": st.column_config.LineChartColumn(
+            "First month sparkline",
+            # ✅ Important: remove global min/max, so each gets its own auto-scale
+            y_min=None,
+            y_max=None,
+            help="Each variable uses its own y-axis scale for better variation visibility."
+        ),
+        "Count (first month)": st.column_config.NumberColumn("Count (first month)"),
+        "Mean (first month)": st.column_config.NumberColumn("Mean (first month)"),
+        "Min (first month)": st.column_config.NumberColumn("Min (first month)"),
+        "Max (first month)": st.column_config.NumberColumn("Max (first month)"),
+        "Std Dev": st.column_config.NumberColumn("Std Dev"),
+        "Range": st.column_config.NumberColumn("Range", help="Difference between max and min")
+    }
+
+    st.dataframe(
+        summary_df,
+        column_config=column_config,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.caption("ℹ️ Each sparkline now uses its own scale — variations are amplified and clearer.")
 
 # --------------- Page 3: Plots ----------------
 def page_plots(df):
-    st.header("Interactive CSV Plots")
-    st.write("Choose column(s) and index range to visualize.")
+    st.header("Interactive plots")
+    st.write("Choose a column (or All), and a month to visualize.")
+
     if df.index.empty:
         st.error("Index appears empty. Check CSV and index parsing.")
         return
 
-    idx_options_full = [str(x) for x in df.index]
-    if len(idx_options_full) > 100:
-        idx_options = idx_options_full[::len(idx_options_full)//100 + 1]
-        if idx_options_full[-1] not in idx_options:
-            idx_options.append(idx_options_full[-1])
-    else:
-        idx_options = idx_options_full
-    if len(idx_options) < 2:
-        st.error("Index needs at least two points.")
+    # ---- New Month-Based Slider ----
+    if not pd.api.types.is_datetime64_any_dtype(df.index):
+        st.error("Index is not datetime. Please check your data.")
         return
 
-    sel = st.select_slider("Select index range (start → end)", options=idx_options,
-                           value=(idx_options[0], idx_options[-1]))
-    s_idx, e_idx = idx_options_full.index(sel[0]), idx_options_full.index(sel[1])
-    if s_idx > e_idx:
-        s_idx, e_idx = e_idx, s_idx
-    df_filtered = df.iloc[s_idx:e_idx + 1]
-    st.markdown(f"Showing {len(df_filtered)} rows")
+    df["month_name"] = df.index.strftime("%B")
+    months = df["month_name"].unique().tolist()
+    month_choice = st.select_slider("Select Month", options=months, value=months[0])
+    df_filtered = df[df["month_name"] == month_choice]
+    st.markdown(f"### Showing data for **{month_choice}** ({len(df_filtered)} rows)")
 
+    # ---- Existing Plot Tabs ----
     tab1, tab2 = st.tabs(["📊 Single/All Columns", "🪞 Dual-Axis Plot"])
+
     with tab1:
         column_options = ["All"] + list(df.columns)
-        chosen = st.selectbox("Choose column(s)", column_options, index=0)
+        chosen = st.selectbox("Choose a single column or All", column_options, index=0)
+
         if chosen == "All":
             df_num = df_filtered.select_dtypes(include='number')
             if df_num.shape[1] == 0:
-                st.warning("No numeric columns.")
+                st.warning("No numeric columns to plot for 'All'.")
             else:
                 df_norm = (df_num - df_num.min()) / (df_num.max() - df_num.min())
                 st.line_chart(df_norm)
-                st.caption("All numeric columns normalized to [0,1]")
+                st.caption("All numeric columns normalized to [0,1] for comparison.")
         else:
             try:
                 series = pd.to_numeric(df_filtered[chosen], errors='coerce')
                 st.line_chart(series)
+                st.caption(f"Plot for column: {chosen}")
             except Exception as e:
-                st.error(f"Could not plot {chosen}: {e}")
+                st.error(f"Could not plot column {chosen}: {e}")
 
     with tab2:
-        num_cols = df_filtered.select_dtypes(include='number').columns.tolist()
-        if len(num_cols) < 2:
-            st.warning("Need at least two numeric columns.")
+        numeric_cols = df_filtered.select_dtypes(include='number').columns.tolist()
+        if len(numeric_cols) < 2:
+            st.warning("Need at least two numeric columns for dual-axis plot.")
         else:
-            c1 = st.selectbox("Left Y-axis", num_cols, index=0)
-            c2 = st.selectbox("Right Y-axis", num_cols, index=1)
-            if c1 != c2:
+            col1 = st.selectbox("Left Y-axis variable", numeric_cols, index=0)
+            col2 = st.selectbox("Right Y-axis variable", numeric_cols, index=1)
+
+            if col1 != col2:
                 fig, ax1 = plt.subplots(figsize=(10, 5))
-                ax1.plot(df_filtered.index, df_filtered[c1], 'b-', label=c1)
+                ax1.plot(df_filtered.index, df_filtered[col1], 'b-', label=col1)
                 ax1.set_xlabel('Index')
-                ax1.set_ylabel(c1, color='b')
+                ax1.set_ylabel(col1, color='b')
                 ax2 = ax1.twinx()
-                ax2.plot(df_filtered.index, df_filtered[c2], 'g-', label=c2)
-                ax2.set_ylabel(c2, color='g')
-                plt.title(f"{c1} vs {c2}")
+                ax2.plot(df_filtered.index, df_filtered[col2], 'g-', label=col2)
+                ax2.set_ylabel(col2, color='g')
+                plt.title(f"Dual-axis Plot: {col1} vs {col2}")
+                fig.tight_layout()
                 plt.grid(True)
                 st.pyplot(fig)
             else:
-                st.info("Select two different columns.")
+                st.info("Please select two different columns for dual-axis plotting.")
+
 
 # --------------- Page 4: Mongo Dashboard (Part 2) ----------------
 def page_mongo_dashboard():
