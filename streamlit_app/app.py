@@ -51,42 +51,46 @@ def page_table(df):
     summary_data = []
     for col in df.columns:
         if pd.api.types.is_numeric_dtype(df[col]):
+            series = first_month[col].dropna()
             summary_data.append({
                 "Variable": col,
-                "First month sparkline": first_month[col].values,
-                "Count (first month)": first_month[col].count(),
-                "Mean (first month)": round(first_month[col].mean(), 4),
-                "Min (first month)": round(first_month[col].min(), 4),
-                "Max (first month)": round(first_month[col].max(), 4),
-                "Std Dev": round(first_month[col].std(), 4)
+                "First month sparkline": series.values,
+                "Count (first month)": series.count(),
+                "Mean (first month)": round(series.mean(), 4),
+                "Min (first month)": round(series.min(), 4),
+                "Max (first month)": round(series.max(), 4),
+                "Std Dev": round(series.std(), 4),
+                "Range": round(series.max() - series.min(), 4)
             })
 
     summary_df = pd.DataFrame(summary_data)
 
-    # --- Display compact summary table with sparklines ---
+    # --- Display compact summary table with adaptive sparklines ---
+    column_config = {
+        "Variable": st.column_config.TextColumn("Variable"),
+        "First month sparkline": st.column_config.LineChartColumn(
+            "First month sparkline",
+            # ✅ Important: remove global min/max, so each gets its own auto-scale
+            y_min=None,
+            y_max=None,
+            help="Each variable uses its own y-axis scale for better variation visibility."
+        ),
+        "Count (first month)": st.column_config.NumberColumn("Count (first month)"),
+        "Mean (first month)": st.column_config.NumberColumn("Mean (first month)"),
+        "Min (first month)": st.column_config.NumberColumn("Min (first month)"),
+        "Max (first month)": st.column_config.NumberColumn("Max (first month)"),
+        "Std Dev": st.column_config.NumberColumn("Std Dev"),
+        "Range": st.column_config.NumberColumn("Range", help="Difference between max and min")
+    }
+
     st.dataframe(
         summary_df,
-        column_config={
-            "Variable": st.column_config.TextColumn("Variable"),
-            "First month sparkline": st.column_config.LineChartColumn(
-                "First month sparkline",
-                y_min=float(df.min().min()),
-                y_max=float(df.max().max())
-            ),
-            "Count (first month)": st.column_config.NumberColumn("Count (first month)"),
-            "Mean (first month)": st.column_config.NumberColumn("Mean (first month)"),
-            "Min (first month)": st.column_config.NumberColumn("Min (first month)"),
-            "Max (first month)": st.column_config.NumberColumn("Max (first month)"),
-            "Std Dev": st.column_config.NumberColumn("Std Dev")
-        },
+        column_config=column_config,
         use_container_width=True,
         hide_index=True
     )
 
-    st.caption("ℹ️ Summary table shows variable trends, counts, and descriptive statistics for the first month only.")
-
-
-
+    st.caption("ℹ️ Each sparkline now uses its own scale — variations are amplified and clearer.")
 
 def page_plots(df):
     st.header("Interactive plots")
