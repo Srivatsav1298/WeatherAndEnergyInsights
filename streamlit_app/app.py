@@ -201,12 +201,30 @@ def page_mongo_dashboard():
         st.subheader("Total Production (Pie Chart)")
         price_areas = sorted(df["priceArea"].dropna().unique())
         pa = st.radio("Price Area", price_areas, index=0)
+
         df_pa = df[df["priceArea"] == pa]
         agg = df_pa.groupby("productionGroup")["quantityKwh"].sum().sort_values(ascending=False)
-        fig1, ax1 = plt.subplots()
-        ax1.pie(agg, labels=agg.index, autopct="%1.1f%%", startangle=140)
+
+        fig1, ax1 = plt.subplots(figsize=(6, 6))
+        wedges, texts, autotexts = ax1.pie(
+            agg,
+            labels=None,                # hide labels on pie
+            autopct="%1.1f%%",
+            startangle=140
+        )
+
+        # ✅ Add legend instead of labels
+        ax1.legend(
+            wedges,
+            agg.index,
+            title="Production Group",
+            loc="center left",
+            bbox_to_anchor=(1, 0.5)
+        )
+
         ax1.axis("equal")
         ax1.set_title(f"Total Production — {pa}")
+        fig1.tight_layout()
         st.pyplot(fig1)
 
     # ---- Right: Line Chart ----
