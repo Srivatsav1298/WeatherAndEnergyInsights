@@ -282,7 +282,7 @@ def page_outlier_anomaly(df_weather):
                             xanchor="center", x=0.5)
             )
             st.plotly_chart(fig, use_container_width=True)
-            st.success(f"✅ Detected {df['outlier'].sum()} outliers from {len(df)} records.")
+            st.success(f"Detected {df['outlier'].sum()} outliers from {len(df)} records.")
         else:
             st.error("⚠️ Missing column: 'temperature_2m (°C)' — please verify your dataset headers.")
 
