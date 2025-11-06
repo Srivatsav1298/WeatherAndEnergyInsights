@@ -9,15 +9,20 @@ from sklearn.neighbors import LocalOutlierFactor
 from scipy.fftpack import dct, idct
 import numpy as np
 import plotly.graph_objects as go
+import time
 
 
-# --------------- CSV loader (Part 1) ----------------
+# ========================
+#   PART 1 — CSV Loader
+# ========================
 def custom_date_parser(x):
     return datetime.strptime(x, "%Y-%m-%dT%H:%M")
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_data(path: str):
+    """Load local CSV data efficiently with caching."""
     try:
+        start = time.time()
         df = pd.read_csv(
             path,
             index_col=0,
@@ -26,20 +31,48 @@ def load_data(path: str):
             date_parser=custom_date_parser
         )
         if df.index.isnull().any():
-            st.warning("Warning: Some date values could not be parsed correctly. Check the index.")
+            st.warning("⚠️ Some date values could not be parsed correctly.")
+        st.info(f"Weather data loaded in {time.time() - start:.2f}s — {len(df):,} records.")
         return df
     except Exception as e:
         st.error(f"Error loading CSV: {e}")
         return pd.DataFrame()
 
 
-# --------------- Helper / Header ----------------
+# =========================
+#   PART 2 — Mongo Loader
+# =========================
+@st.cache_data(show_spinner=True)
+def load_mongo_data(password: str):
+    """Cached MongoDB connection with projection and timing."""
+    try:
+        start = time.time()
+        username = "abbuvatsav"
+        uri = f"mongodb+srv://{username}:{password}@cluster0.klxry.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+        client = MongoClient(uri)
+        collection = client["Cluster0"]["elhub_production_data"]
+
+        data = list(collection.find({}, {"_id": 0}))  # Projection (skip _id for speed)
+        df = pd.DataFrame(data)
+        df["startTime"] = pd.to_datetime(df["startTime"])
+        st.success(f"MongoDB loaded in {time.time() - start:.2f}s — {len(df):,} records.")
+        return df
+    except Exception as e:
+        st.error(f"❌ MongoDB connection failed: {e}")
+        return pd.DataFrame()
+
+
+# ==========================
+#   Helper / Header
+# ==========================
 def show_header():
     st.title("IND320 — Dashboard (Part 1 + 2 + 3)")
     st.write("Use the sidebar to navigate between pages.")
 
 
-# --------------- Page 1: Home ----------------
+# ==========================
+#   PAGE 1 — Home
+# ==========================
 def page_home():
     show_header()
     st.markdown("## Welcome")
@@ -51,7 +84,9 @@ def page_home():
     """)
 
 
-# --------------- Page 2: Data Table ----------------
+# ==========================
+#   PAGE 2 — Data Table
+# ==========================
 def page_table(df):
     st.header("📈 Variables summary for the first month (2020-01)")
     first_month = df[df.index.month == 1]
@@ -84,7 +119,9 @@ def page_table(df):
     st.caption("Each sparkline uses its own y-axis scale for better variation visibility.")
 
 
-# --------------- Page 3: Plots ----------------
+# ==========================
+#   PAGE 3 — Plots
+# ==========================
 def page_plots(df):
     st.header("Interactive plots")
     st.write("Choose a column (or All), and a month to visualize.")
@@ -94,12 +131,15 @@ def page_plots(df):
     if not pd.api.types.is_datetime64_any_dtype(df.index):
         st.error("Index is not datetime. Please check your data.")
         return
+
     df["month_name"] = df.index.strftime("%B")
     months = df["month_name"].unique().tolist()
     month_choice = st.select_slider("Select Month", options=months, value=months[0])
     df_filtered = df[df["month_name"] == month_choice]
     st.markdown(f"### Showing data for **{month_choice}** ({len(df_filtered)} rows)")
+
     tab1, tab2 = st.tabs(["📊 Single/All Columns", "🪞 Dual-Axis Plot"])
+
     with tab1:
         column_options = ["All"] + list(df.columns)
         chosen = st.selectbox("Choose a single column or All", column_options, index=0)
@@ -113,6 +153,7 @@ def page_plots(df):
         else:
             series = pd.to_numeric(df_filtered[chosen], errors='coerce')
             st.line_chart(series)
+
     with tab2:
         numeric_cols = df_filtered.select_dtypes(include='number').columns.tolist()
         if len(numeric_cols) >= 2:
@@ -126,7 +167,9 @@ def page_plots(df):
             st.pyplot(fig)
 
 
-# --------------- Page 4: Mongo Dashboard (Part 2) ----------------
+# ==========================
+#   PAGE 4 — Mongo Dashboard
+# ==========================
 def page_mongo_dashboard():
     st.header("Production Dashboard — MongoDB (Part 2)")
     st.write("Visualizing Elhub 2021 production data stored in MongoDB.")
@@ -134,19 +177,13 @@ def page_mongo_dashboard():
     if not mongo_password:
         st.error("MongoDB password is missing. Please set the environment variable MONGO_PASSWORD.")
         return
-    try:
-        username = "abbuvatsav"
-        mongo_uri = f"mongodb+srv://{username}:{mongo_password}@cluster0.klxry.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-        client = MongoClient(mongo_uri)
-        collection = client["Cluster0"]["elhub_production_data"]
-        df = pd.DataFrame(list(collection.find({}, {"_id": 0})))
-    except Exception as e:
-        st.error(f"MongoDB connection failed: {e}")
-        return
+    df = load_mongo_data(mongo_password)
     if df.empty:
         st.warning("No data found in MongoDB.")
         return
+
     df["startTime"] = pd.to_datetime(df["startTime"])
+
     left, right = st.columns(2)
     with left:
         st.subheader("Total Production (Pie Chart)")
@@ -183,10 +220,9 @@ def page_mongo_dashboard():
         """)
 
 
-# ============================
-# ---------- PART 3 -----------
-# ============================
-
+# ==========================
+#   PAGE 5 — STL & Spectrogram
+# ==========================
 def page_stl_spectrogram(df_elhub):
     st.header("📊 STL Decomposition & Spectrogram (Part 3A)")
     if df_elhub.empty:
@@ -219,142 +255,101 @@ def page_stl_spectrogram(df_elhub):
         st.plotly_chart(fig2, use_container_width=True)
 
 
+# ==========================
+#   PAGE 6 — Outlier/Anomaly
+# ==========================
 def page_outlier_anomaly(df_weather):
     st.header("⚡ Outlier & Anomaly Detection (Part 3B)")
-
-    # --- Step 1: Safety check ---
     if df_weather is None or df_weather.empty:
-        st.error("❌ Weather dataset is empty. Please check that your CSV file path is correct.")
+        st.error("❌ Weather dataset is empty.")
         st.stop()
 
-    # --- Step 2: Display tabs ---
     tab1, tab2 = st.tabs(["🌡️ Temperature SPC", "🌧️ Precipitation Anomalies (LOF)"])
 
-    # ==========================================================
-    # 🌡️ TAB 1 — Temperature SPC (Statistical Process Control)
-    # ==========================================================
+    # --- TAB 1 ---
     with tab1:
         st.subheader("Temperature Outlier Detection (SPC – DCT Method)")
-
-        # --- Parameter sliders ---
         freq_cutoff = st.slider("DCT Frequency Cutoff", 5, 200, 50)
         n_std = st.slider("SPC Sigma Threshold (σ)", 1.0, 5.0, 2.0)
-
-        # Ensure the exact column name 'temperature_2m (°C)'
         if "temperature_2m (°C)" in df_weather.columns:
             df = df_weather.copy()
             df["temperature_2m (°C)"] = df["temperature_2m (°C)"].interpolate().fillna(method='bfill')
-
-            # --- DCT transformation and filtering ---
             temp = df["temperature_2m (°C)"].values
             coeff = dct(temp, norm='ortho')
             coeff[:int(freq_cutoff)] = 0
             satv = idct(coeff, norm='ortho')
-
-            # --- SPC bounds ---
             mean, std = np.mean(satv), np.std(satv)
             upper, lower = mean + n_std * std, mean - n_std * std
             df["outlier"] = (satv > upper) | (satv < lower)
-
-            # --- Plotly interactive plot ---
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=df.index, y=df["temperature_2m (°C)"],
                                      mode="lines", name="Temperature (°C)",
                                      line=dict(color="royalblue")))
-            fig.add_trace(go.Scatter(x=df.index, y=[upper] * len(df),
+            fig.add_trace(go.Scatter(x=df.index, y=[upper]*len(df),
                                      mode="lines", name="Upper Bound (+σ)",
                                      line=dict(dash="dash", color="orange")))
-            fig.add_trace(go.Scatter(x=df.index, y=[lower] * len(df),
+            fig.add_trace(go.Scatter(x=df.index, y=[lower]*len(df),
                                      mode="lines", name="Lower Bound (-σ)",
                                      line=dict(dash="dash", color="orange")))
             fig.add_trace(go.Scatter(x=df.index[df["outlier"]],
                                      y=df["temperature_2m (°C)"][df["outlier"]],
                                      mode="markers", name="Outliers",
                                      marker=dict(color="red", size=9, symbol="diamond")))
-
-            fig.update_layout(
-                title="Temperature SPC Outlier Detection (DCT-based)",
-                xaxis_title="Date",
-                yaxis_title="Temperature (°C)",
-                template="plotly_white",
-                hovermode="x unified",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                            xanchor="center", x=0.5)
-            )
+            fig.update_layout(title="Temperature SPC Outlier Detection (DCT-based)",
+                              xaxis_title="Date", yaxis_title="Temperature (°C)",
+                              template="plotly_white", hovermode="x unified")
             st.plotly_chart(fig, use_container_width=True)
             st.success(f"Detected {df['outlier'].sum()} outliers from {len(df)} records.")
         else:
-            st.error("⚠️ Missing column: 'temperature_2m (°C)' — please verify your dataset headers.")
+            st.error("⚠️ Missing column: 'temperature_2m (°C)'")
 
-
-    # ==========================================================
-    # 🌧️ TAB 2 — Precipitation Anomalies (LOF)
-    # ==========================================================
+    # --- TAB 2 ---
     with tab2:
         st.subheader("Precipitation Anomaly Detection (LOF)")
         contamination = st.slider("LOF Contamination Ratio", 0.001, 0.05, 0.01)
-
-        # Ensure the exact column name 'precipitation (mm)'
         if "precipitation (mm)" in df_weather.columns:
             df = df_weather.copy()
             df["precipitation (mm)"] = df["precipitation (mm)"].fillna(0)
-
-            # --- LOF outlier detection ---
             lof = LocalOutlierFactor(n_neighbors=20, contamination=contamination)
             df["anomaly"] = lof.fit_predict(df[["precipitation (mm)"]]) == -1
-
-            # --- Plotly plot ---
             fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df["precipitation (mm)"],
-                mode="lines", name="Normal Observations",
-                line=dict(color="royalblue")
-            ))
-            fig.add_trace(go.Scatter(
-                x=df.index[df["anomaly"]],
-                y=df["precipitation (mm)"][df["anomaly"]],
-                mode="markers", name="Anomalies (LOF)",
-                marker=dict(color="red", size=9, symbol="diamond")
-            ))
-
-            fig.update_layout(
-                title="Precipitation Anomalies — Local Outlier Factor (LOF)",
-                xaxis_title="Date",
-                yaxis_title="Precipitation (mm)",
-                template="plotly_white",
-                hovermode="x unified",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                            xanchor="center", x=0.5)
-            )
+            fig.add_trace(go.Scatter(x=df.index, y=df["precipitation (mm)"],
+                                     mode="lines", name="Normal Observations",
+                                     line=dict(color="royalblue")))
+            fig.add_trace(go.Scatter(x=df.index[df["anomaly"]],
+                                     y=df["precipitation (mm)"][df["anomaly"]],
+                                     mode="markers", name="Anomalies (LOF)",
+                                     marker=dict(color="red", size=9, symbol="diamond")))
+            fig.update_layout(title="Precipitation Anomalies — Local Outlier Factor (LOF)",
+                              xaxis_title="Date", yaxis_title="Precipitation (mm)",
+                              template="plotly_white", hovermode="x unified")
             st.plotly_chart(fig, use_container_width=True)
             st.success(f"Detected {df['anomaly'].sum()} anomalies from {len(df)} observations.")
         else:
-            st.error("⚠️ Missing column: 'precipitation (mm)' — please verify your dataset headers.")
+            st.error("⚠️ Missing column: 'precipitation (mm)'")
 
 
-
-
-# --------------- Page 6: About ----------------
+# ==========================
+#   PAGE 7 — About
+# ==========================
 def page_about():
     st.header("About / Test Page")
     st.write("Project links and credits.")
     st.markdown("**GitHub Repo:** [WeatherAndEnergyInsights](https://github.com/Srivatsav1298/WeatherAndEnergyInsights)") 
-    st.markdown("**Streamlit App:** [weatherandenergyinsights.streamlit.app](https://weatherandenergyinsights.streamlit.app//)")
+    st.markdown("**Streamlit App:** [weatherandenergyinsights.streamlit.app](https://weatherandenergyinsights.streamlit.app/)")
 
 
-# --------------- Main ----------------
+# ==========================
+#   MAIN APP ENTRY
+# ==========================
 def main():
     st.set_page_config(layout="wide", initial_sidebar_state="expanded")
     DATA_PATH = "data/open-meteo-subset.csv"
-    df_weather = load_data(DATA_PATH)
 
-    # Connect Mongo
+    df_weather = load_data(DATA_PATH)
     try:
         mongo_password = st.secrets["mongo"]["password"]
-        uri = f"mongodb+srv://abbuvatsav:{mongo_password}@cluster0.klxry.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-        client = MongoClient(uri)
-        df_elhub = pd.DataFrame(list(client["Cluster0"]["elhub_production_data"].find({}, {"_id": 0})))
-        df_elhub["startTime"] = pd.to_datetime(df_elhub["startTime"])
+        df_elhub = load_mongo_data(mongo_password)
     except Exception:
         df_elhub = pd.DataFrame()
 
@@ -368,9 +363,11 @@ def main():
         "Outlier / Anomaly (Part 3B)": lambda: page_outlier_anomaly(df_weather),
         "About": page_about
     }
+
     choice = st.sidebar.radio("Go to", list(pages.keys()))
     st.sidebar.markdown("---")
     st.sidebar.info("IND320 Dashboard — Parts 1, 2 & 3")
+
     if choice in ["Data Table", "Plots"]:
         if not df_weather.empty:
             pages[choice](df_weather)
