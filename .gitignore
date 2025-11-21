@@ -1,5 +1,6 @@
 .DS_Store
 notebooks/.DS_Store
 notebooks/*.pdf
+notebooks/convert.ipynb
 nvenv/
 password.txt
