@@ -15,10 +15,33 @@ def page_sarimax(df_elhub, df_weather):
     if df_elhub is None or df_elhub.empty:
         st.error("❌ Elhub dataset is empty — cannot run forecasting.")
         return
+    
+        # ---------- Defensive canonicalization (in case utils didn't run) ----------
+    # Look for case-insensitive variants and create canonical columns expected below.
+    lower_cols = {c.lower(): c for c in df_elhub.columns if isinstance(c, str)}
 
-    # ------------------------------------------------------------------
-    # ALWAYS show radio buttons for user
-    # ------------------------------------------------------------------
+    def _alias_if_missing(canonical, candidates_lower):
+        """If canonical is missing but a lower-case variant exists, create canonical column."""
+        if canonical not in df_elhub.columns:
+            for cand in candidates_lower:
+                if cand in lower_cols and lower_cols[cand] != canonical:
+                    df_elhub[canonical] = df_elhub[lower_cols[cand]]
+                    break
+
+    _alias_if_missing("consumptionGroup", ["consumptiongroup", "consumption_group"])
+    _alias_if_missing("productionGroup", ["productiongroup", "production_group"])
+    _alias_if_missing("quantityKwh", ["quantitykwh", "quantity_kwh", "quantity"])
+    _alias_if_missing("startTime", ["starttime", "start_time", "start"])
+    _alias_if_missing("priceArea", ["pricearea", "price_area"])
+    _alias_if_missing("recordType", ["recordtype", "record_type", "type"])
+    # Ensure datetime for startTime (if created above)
+    if "startTime" in df_elhub.columns and not pd.api.types.is_datetime64_any_dtype(df_elhub["startTime"]):
+        try:
+            df_elhub["startTime"] = pd.to_datetime(df_elhub["startTime"], errors="coerce")
+        except Exception:
+            pass
+
+    
     mode = st.radio(
         "Select dataset to forecast:",
         ["Production", "Consumption"],
