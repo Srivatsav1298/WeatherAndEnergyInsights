@@ -16,15 +16,92 @@ from viz import safe_set_page_config
 safe_set_page_config()
 
 def page_home():
-    st.title("IND320 — Dashboard (Parts 1–4)")
-    st.markdown("Project work for Assignment 4 — integrated dashboard.")
+    st.title("🌦️⚡ IND320 — Weather and Energy Dashboard")
     st.markdown("""
-    **Parts included**
-    - Part 1: Local weather CSV (Open-Meteo subset)  
-    - Part 2: Elhub production data (MongoDB)  
-    - Part 3: Analysis — STL, Spectrogram, Outliers, Sliding Correlation  
-    - Part 4: Map (Price areas) + Snow drift + Forecasting (SARIMAX)
+    Welcome to the **Integrated Dashboard** combining weather data, electricity production & consumption, geographic analysis, anomaly detection, correlations, and forecasting.
+
+    ---
+    ## 📘 **Project Overview (Parts 1–4)**
+
+    ### **Part 1 — Weather Data**
+    - ERA5/Open-Meteo hourly dataset  
+    - Cleaned, parsed, visualised  
+    - Used later for anomalies, snow drift, and forecasting inputs  
+
+    ### **Part 2 — Elhub Data Integration (Production & Consumption)**
+    - Elhub API ingestion  
+    - Hourly **production (2021–2024)** using `PRODUCTION_PER_GROUP_MBA_HOUR`  
+    - Hourly **consumption (2021–2024)** using `CONSUMPTION_PER_GROUP_MBA_HOUR`  
+    - Stored in both **Cassandra (via Spark)** and **MongoDB (Atlas)**  
+    - Fully refactored ingestion pipeline  
+
+    ### **Part 3 — Time Series Analysis & Anomalies**
+    - STL decomposition  
+    - Spectrogram frequency analysis  
+    - Corrected DCT–SPC temperature outlier detection  
+    - Precipitation anomalies using LOF  
+    - Sliding-window correlation between weather & production  
+
+    ### **Part 4 — Geographic Integration & Forecasting**
+    - **GeoJSON price area map (NO1–NO5)** with choropleth  
+    - Coordinate selection stored for later analysis  
+    - Yearly snow drift calculation (July → June)  
+    - Wind rose visualisation  
+    - Full **SARIMAX forecasting interface** with:
+        - ARIMA parameters  
+        - Seasonal parameters  
+        - Exogenous weather variables  
+        - Confidence intervals  
+
+    ---
+
+    Use the **sidebar navigation** to explore each component of the project.
     """)
+
+def page_about():
+    st.title("ℹ️ About This Dashboard")
+    st.markdown("""
+    This dashboard is the result of completing **Parts 1–4 of the IND320 course project**, 
+    combining data engineering, API integration, time-series analysis, anomaly detection, 
+    geospatial visualisation, and forecasting.
+
+    ---
+    ##**Technologies Used**
+    - **Python 3.9**  
+    - **Streamlit** for interactive visualisation  
+    - **Plotly & Mapbox** for dynamic plotting  
+    - **Pandas / NumPy** for data handling  
+    - **Statsmodels** for SARIMAX forecasting  
+    - **SciPy** for STL & DCT transforms  
+    - **MongoDB Atlas** for production data storage  
+    - **Apache Cassandra + Spark** for large-scale ingestion  
+    - **Open-Meteo** and **Elhub API** for raw data sources  
+
+    ---
+    ##**Data Sources**
+    - **Weather:** ERA5/Open-Meteo hourly data  
+    - **Energy Production:** Elhub `PRODUCTION_PER_GROUP_MBA_HOUR`  
+    - **Energy Consumption:** Elhub `CONSUMPTION_PER_GROUP_MBA_HOUR`  
+    - **Price Areas:** GeoJSON downloaded from NVE Temakart  
+
+    ---
+    ## Project Structure
+    - `/analysis.py` : STL, spectrogram, anomalies, correlation  
+    - `/map_pages.py` : interactive GeoJSON area map  
+    - `/snow_drift.py` : snow drift + wind rose  
+    - `/sarimax_page.py` : forecasting interface  
+    - `/utils.py` : caching, Mongo connection, loader  
+    - `/app.py` : main control, navigation  
+
+    ---
+    ## Author
+    **Srivatsav Saravanan**  
+    IND320 — Norwegian University of Life Sciences 
+    GitHub: <https://github.com/Srivatsav1298/WeatherAndEnergyInsights>
+
+    """)
+
+
 
 def page_table(df):
     st.header("Preview — Weather data (first rows)")
@@ -59,7 +136,7 @@ def main():
         "Snow drift": lambda: page_snow_drift(df_weather, df_elhub),
         "Forecasting (SARIMAX)": lambda: page_sarimax(df_elhub, df_weather),
         "Mongo Dashboard": lambda: page_mongo_dashboard(df_elhub),
-        "About": lambda: st.info("See repository: https://github.com/Srivatsav1298/WeatherAndEnergyInsights")
+        "About": lambda: page_about()
     }
 
     choice = st.sidebar.radio("Go to", list(pages.keys()))

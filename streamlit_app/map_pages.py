@@ -17,7 +17,7 @@ def page_price_area_map_selectable(df_elhub):
     """
     st.header("Price Area Map — selectable")
     if df_elhub is None or df_elhub.empty:
-        st.error("Production data not loaded. Please ensure Mongo is accessible.")
+        st.error("Production data not loaded.")
         return
 
     # ensure datetime
