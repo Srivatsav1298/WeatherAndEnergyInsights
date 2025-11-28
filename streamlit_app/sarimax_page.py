@@ -15,6 +15,9 @@ def page_sarimax(df_elhub, df_weather):
     if df_elhub is None or df_elhub.empty:
         st.error("❌ Elhub dataset is empty — cannot run forecasting.")
         return
+        # DEBUG — show raw columns
+    st.write("DEBUG columns:", df_elhub.columns.tolist())
+
     
         # ---------- Defensive canonicalization (in case utils didn't run) ----------
     # Look for case-insensitive variants and create canonical columns expected below.
