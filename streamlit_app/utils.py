@@ -34,60 +34,70 @@ def load_data(path: str):
 
 @st.cache_data(show_spinner=True)
 def load_mongo_data(password: str):
-    """Load Elhub production data from your MongoDB (cached)."""
+    """Load BOTH production and consumption data from MongoDB, merge them, and standardize columns."""
     try:
         start = time.time()
         username = "abbuvatsav"
         uri = f"mongodb+srv://{username}:{password}@cluster0.klxry.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
         client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-        collection = client["Cluster0"]["elhub_production_data"]
-        docs = list(collection.find({}, {"_id": 0}))
-        df = pd.DataFrame(docs)
-        
-        
-                # ---------- canonicalize column names (case-insensitive mapping) ----------
-        # Trim spaces and keep original case for other uses, but create canonical names
-        df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
 
-        # Build a map from lower-case column name -> real column name
-        col_map = {str(c).lower(): c for c in df.columns}
+        db = client["Cluster0"]
 
-        # canonical name mapping: lower-case -> canonical name expected in code
-        canonical_map = {
-            "starttime": "startTime",
-            "pricearea": "priceArea",
-            "quantitykwh": "quantityKwh",
-            "productiongroup": "productionGroup",
-            "consumptiongroup": "consumptionGroup",
-            "recordtype": "recordType"
-        }
+        # ---- READ PRODUCTION ----
+        prod_docs = list(db["elhub_production_data"].find({}, {"_id": 0}))
+        df_prod = pd.DataFrame(prod_docs)
 
-        # For each canonical, if a variant exists, rename the column in df to canonical name
-        rename_dict = {}
-        for lower_key, canonical in canonical_map.items():
-            if lower_key in col_map and canonical not in df.columns:
-                rename_dict[col_map[lower_key]] = canonical
+        # ---- READ CONSUMPTION ----
+        cons_docs = list(db["elhub_consumption_2021_2024"].find({}, {"_id": 0}))
+        df_cons = pd.DataFrame(cons_docs)
 
-        if rename_dict:
-            df = df.rename(columns=rename_dict)
+        # If consumption is missing, warn but do not crash
+        if df_cons.empty:
+            st.warning("⚠ No consumption data found in MongoDB.")
 
-        # Ensure startTime is datetime if present (safe parsing)
-        if "startTime" in df.columns:
-            try:
-                df["startTime"] = pd.to_datetime(df["startTime"])
-            except Exception:
-                # try utc/local parse fallback
+        # ---- STANDARDIZE COLUMN NAMES ----
+        def canonicalize(df):
+            if df.empty:
+                return df
+            df.columns = [c.strip() for c in df.columns]
+
+            col_map = {c.lower(): c for c in df.columns}
+
+            canonical_map = {
+                "starttime": "startTime",
+                "pricearea": "priceArea",
+                "quantitykwh": "quantityKwh",
+                "productiongroup": "productionGroup",
+                "consumptiongroup": "consumptionGroup",
+                "recordtype": "recordType"
+            }
+
+            rename_dict = {}
+            for lower_key, canonical in canonical_map.items():
+                if lower_key in col_map and canonical not in df.columns:
+                    rename_dict[col_map[lower_key]] = canonical
+
+            if rename_dict:
+                df = df.rename(columns=rename_dict)
+
+            if "startTime" in df.columns:
                 df["startTime"] = pd.to_datetime(df["startTime"], errors="coerce")
 
-        
-        
-        if not df.empty and "startTime" in df.columns:
-            df["startTime"] = pd.to_datetime(df["startTime"])
-        st.success(f"Mongo data loaded: {len(df):,} rows ({time.time()-start:.2f}s)")
-        return df
+            return df
+
+        df_prod = canonicalize(df_prod)
+        df_cons = canonicalize(df_cons)
+
+        # ---- MERGE BOTH (union) ----
+        df_all = pd.concat([df_prod, df_cons], ignore_index=True)
+
+        st.success(f"Mongo data loaded: {len(df_all):,} rows ({time.time()-start:.2f}s)")
+        return df_all
+
     except Exception as e:
         st.error(f"Could not connect/read MongoDB: {e}")
         return pd.DataFrame()
+
 
 def safe_set_page_config():
     # centralised page config
