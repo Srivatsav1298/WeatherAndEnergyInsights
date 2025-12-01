@@ -30,24 +30,43 @@ def page_mongo_dashboard(df_elhub):
     st.line_chart(df_ts["quantityKwh"])
 
 # STL & Spectrogram
+# STL & Spectrogram
 def page_stl_spectrogram(df_elhub):
     st.header("STL decomposition & spectrogram")
     if df_elhub is None or df_elhub.empty:
         st.warning("No Elhub data loaded")
         return
-    pa = st.selectbox("Price area (STL)", sorted(df_elhub["priceArea"].unique()))
-    pg = st.selectbox("Production group (STL)", sorted(df_elhub["productionGroup"].unique()))
-    df_sel = df_elhub[(df_elhub["priceArea"]==pa) & (df_elhub["productionGroup"]==pg)].copy()
+
+    # Convert priceArea and productionGroup to string to avoid mixed-type sorting issues
+    pa = st.selectbox(
+        "Price area (STL)",
+        sorted(df_elhub["priceArea"].dropna().astype(str).unique())
+    )
+    pg = st.selectbox(
+        "Production group (STL)",
+        sorted(df_elhub["productionGroup"].dropna().astype(str).unique())
+    )
+
+    df_sel = df_elhub[
+        (df_elhub["priceArea"].astype(str) == pa) &
+        (df_elhub["productionGroup"].astype(str) == pg)
+    ].copy()
+
     if df_sel.empty:
         st.warning("No data for selection")
         return
+
     df_daily = df_sel.groupby(df_sel["startTime"].dt.date)["quantityKwh"].sum().reset_index()
     df_daily["startTime"] = pd.to_datetime(df_daily["startTime"])
+
     if len(df_daily) < 10:
         st.warning("Too few daily points for STL")
         return
+
     period = st.slider("STL seasonal period (days)", 7, 90, 30)
     stl = STL(df_daily["quantityKwh"], period=period, robust=True).fit()
+
+    # Plot STL decomposition
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df_daily["startTime"], y=df_daily["quantityKwh"], name="Observed"))
     fig.add_trace(go.Scatter(x=df_daily["startTime"], y=stl.trend, name="Trend"))
@@ -55,13 +74,15 @@ def page_stl_spectrogram(df_elhub):
     fig.add_trace(go.Scatter(x=df_daily["startTime"], y=stl.resid, name="Residual"))
     fig.update_layout(title=f"STL — {pg} ({pa})", template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
-    # spectrogram
+
+    # Spectrogram
     win = st.slider("Spectrogram window (nperseg)", 15, 90, 30)
     f, t, Sxx = spectrogram(df_daily["quantityKwh"].values, fs=1, nperseg=win)
     Sxx_db = 10 * np.log10(Sxx + 1e-12)
     spec_fig = go.Figure(data=go.Heatmap(z=Sxx_db, x=t, y=f, colorscale="Viridis"))
     spec_fig.update_layout(title="Spectrogram (daily series)", template="plotly_white")
     st.plotly_chart(spec_fig, use_container_width=True)
+
 
 def page_outlier_anomaly(df_weather):
     st.header("⚡ Outlier & Anomaly Detection (Part 3B)")
