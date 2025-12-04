@@ -53,7 +53,7 @@ def compute_snow_drift_for_years(df_weather, coord, year_start, year_end):
     return pd.DataFrame(results)
 
 def page_snow_drift(df_weather, df_elhub):
-    st.header("Snow drift (minimal, Option A) — yearly, using selected centroid")
+    st.header("Snow drift — yearly, using selected centroid")
     # require both datasets present to use selected centroid
     coord = st.session_state.get("selected_coord", None)
     if coord is None:
