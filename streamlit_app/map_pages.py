@@ -6,7 +6,7 @@ import json
 import os
 import numpy as np
 
-GEOJSON_PATH = os.path.join("..", "data", "elspot_areas.geojson")
+GEOJSON_PATH = os.path.join("data", "elspot_areas.geojson")
 CENTROIDS_CSV = os.path.join("data", "price_areas_cities.csv")
 
 def page_price_area_map_selectable(df_elhub):

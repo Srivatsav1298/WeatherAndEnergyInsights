@@ -66,16 +66,34 @@ def page_snow_drift(df_weather, df_elhub):
     st.write(f"Using coordinate: {coord}")
 
     # allow year range (min/max based on weather data)
-    min_year = df_weather.index.min().year
-    max_year = df_weather.index.max().year
-    # because years are 1 July -> 30 June, we allow selection across these years
-    start_year = st.number_input("Start year (y): choose starting YEAR for 1 July YEAR", min_value=int(min_year), max_value=int(max_year), value=int(min_year))
-    end_year = st.number_input("End year (y)", min_value=int(start_year), max_value=int(max_year), value=int(min_year))
+    # allow year range (min/max based on weather data)
+    # We default to the full range available in the weather CSV, but let user choose.
+    if pd.api.types.is_datetime64_any_dtype(df_weather.index):
+        min_year = df_weather.index.min().year
+        max_year = df_weather.index.max().year
+    else:
+        # Fallback if index issue
+        st.warning("Weather index not datetime, assuming default years.")
+        min_year, max_year = 2020, 2025
+
+    # Logic: A "Snow Year" Y starts 1 July Y and ends 30 June Y+1.
+    # So if data goes up to 2024, max start year is 2023.
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        start_year = st.number_input("Start year (July 1st)", min_value=1950, max_value=2100, value=int(min_year))
+    with col2:
+        end_year = st.number_input("End year (June 30th of next year)", min_value=1950, max_value=2100, value=int(max_year))
+
     if start_year > end_year:
         st.error("Start year must be <= end year")
         return
 
-    st.info("Calculating yearly snow drift index (proxy)")
+    st.info(f"Calculating drift for snow-years: {start_year}/{start_year+1} ... {end_year}/{end_year+1}")
+    
+    if start_year > max_year or end_year < min_year:
+        st.warning(f"⚠️ Selected range ({start_year}-{end_year}) might be outside available weather data ({min_year}-{max_year}).")
+
     df_res = compute_snow_drift_for_years(df_weather, coord, int(start_year), int(end_year))
     st.dataframe(df_res)
 
