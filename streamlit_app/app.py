@@ -58,92 +58,105 @@ def page_home():
     Use the **sidebar navigation** to explore each component of the project.
     """)
 
-def page_about():
-    st.title("ℹ️ About This Dashboard")
-    st.markdown("""
-    This dashboard is the result of completing **Parts 1–4 of the IND320 course project**, 
-    combining data engineering, API integration, time-series analysis, anomaly detection, 
-    geospatial visualisation, and forecasting.
-
-    ---
-    ##**Technologies Used**
-    - **Python 3.9**  
-    - **Streamlit** for interactive visualisation  
-    - **Plotly & Mapbox** for dynamic plotting  
-    - **Pandas / NumPy** for data handling  
-    - **Statsmodels** for SARIMAX forecasting  
-    - **SciPy** for STL & DCT transforms  
-    - **MongoDB Atlas** for production data storage  
-    - **Apache Cassandra + Spark** for large-scale ingestion  
-    - **Open-Meteo** and **Elhub API** for raw data sources  
-
-    ---
-    ##**Data Sources**
-    - **Weather:** ERA5/Open-Meteo hourly data  
-    - **Energy Production:** Elhub `PRODUCTION_PER_GROUP_MBA_HOUR`  
-    - **Energy Consumption:** Elhub `CONSUMPTION_PER_GROUP_MBA_HOUR`  
-    - **Price Areas:** GeoJSON downloaded from NVE Temakart  
-
-    ---
-    ## Project Structure
-    - `/analysis.py` : STL, spectrogram, anomalies, correlation  
-    - `/map_pages.py` : interactive GeoJSON area map  
-    - `/snow_drift.py` : snow drift + wind rose  
-    - `/sarimax_page.py` : forecasting interface  
-    - `/utils.py` : caching, Mongo connection, loader  
-    - `/app.py` : main control, navigation  
-
-    ---
-    ## Author
-    **Srivatsav Saravanan**  
-    IND320 — Norwegian University of Life Sciences 
-    GitHub: <https://github.com/Srivatsav1298/WeatherAndEnergyInsights>
-
-    """)
-
-
-
-def page_table(df):
-    st.header("Preview — Weather data (first rows)")
-    if df is None or df.empty:
-        st.warning("No weather data loaded.")
-        return
-    st.dataframe(df.head(200))
-
-def main():
-    safe_set_page_config()  # again in case
+# Wrapper functions for data loading to avoid global load
+@st.cache_data
+def get_weather_data():
     DATA_PATH = "data/bergen_2021_era5.csv"
-    df_weather = load_data(DATA_PATH)
+    return load_data(DATA_PATH)
 
-    # Try load production data from Mongo — cached in utils
-    df_elhub = None
+@st.cache_data
+def get_elhub_data():
     try:
         mongo_password = st.secrets["mongo"]["password"]
-        df_elhub = load_mongo_data(mongo_password)
+        return load_mongo_data(mongo_password)
     except Exception:
-        # We don't crash the app — page functions will handle empty/missing data
-        df_elhub = None
+        return None
 
-    st.sidebar.title("Navigation — Assignment 4")
-    # Grouped sections in menu (logical order)
-    pages = {
-        "Home": page_home,
-        "Data (Weather)": lambda: page_table(df_weather),
-        "Exploratory Plots": lambda: page_stl_spectrogram(df_elhub),
-        "Anomaly Detection": lambda: page_outlier_anomaly(df_weather),
-        "Price Area Map": lambda: page_price_area_map_selectable(df_elhub),
-        "Meteo ↔ Production Corr": lambda: page_meteorology_correlation(df_weather, df_elhub),
-        "Snow drift": lambda: page_snow_drift(df_weather, df_elhub),
-        "Forecasting (SARIMAX)": lambda: page_sarimax(df_elhub, df_weather),
-        "Mongo Dashboard": lambda: page_mongo_dashboard(df_elhub),
-        "About": lambda: page_about()
-    }
+def main():
+    safe_set_page_config()
 
-    choice = st.sidebar.radio("Go to", list(pages.keys()))
+    st.sidebar.title("Navigation")
+    
+    # Define pages with lazy data loading
+    # Required order: 1, 4, new A, 2, 3, new B, 5
+    # 1: Home
+    # 4: Market/Map (moved)
+    # A: STL/Spectrogram (New A)
+    # 2: Data (Weather)
+    # 3: Outlier/Anomaly (Tabbed)
+    # B: Correlation (New B)
+    # 5: Forecasting
+    
+    selection = st.sidebar.radio("Go to", [
+        "1. Home",
+        "2. Price Area Map",
+        "3. Exploratory Plots (STL/Spec)",
+        "4. Weather Data",
+        "5. Anomalies (SPC/LOF)",
+        "6. Correlations (Meteo/Prod)",
+        "7. Snow Drift",
+        "8. Forecasting (SARIMAX)",
+        "9. Mongo Dashboard",
+        "10. About"
+    ])
+
     st.sidebar.markdown("---")
     st.sidebar.markdown("Assignment 4 — IND320")
 
-    pages[choice]()
+    if selection == "1. Home":
+        page_home()
+    
+    elif selection == "2. Price Area Map":
+        df = get_elhub_data()
+        page_price_area_map_selectable(df)
+        
+    elif selection == "3. Exploratory Plots (STL/Spec)":
+        # "New A" - Tabbed STL and Spectrogram
+        df = get_elhub_data()
+        # Note: Analysis function handles tabs internally or we can wrap it here if needed.
+        # Current page_stl_spectrogram does both stl and spectrogram sequentially.
+        # Requirement says: "fill the first tab with the STL analysis and the second tab with the Spectrogram"
+        # I will need to update page_stl_spectrogram to use tabs.
+        page_stl_spectrogram(df)
+
+    elif selection == "4. Weather Data":
+        df = get_weather_data()
+        page_table(df)
+
+    elif selection == "5. Anomalies (SPC/LOF)":
+        # "New B" part 1 (or old page 3 equivalent)
+        # Requirement says: "fill the first tab with the Outlier/SPC analysis and the second tab with the Anomaly/LOF analysis"
+        # My page_outlier_anomaly ALREADY does this tab split.
+        df = get_weather_data()
+        page_outlier_anomaly(df)
+
+    elif selection == "6. Correlations (Meteo/Prod)":
+        # "New B" part 2 or separate?
+        # Requirement says: "between page 3 and page 5" is NEW B.
+        # "On page "new B", use st.tabs() and fill the first tab with the Outlier/SPC analysis and the second tab with the Anomaly/LOF analysis."
+        # WAIT. The requirement says New B IS the anomaly page.
+        # So "3. Outlier/Anomaly" IS "New B".
+        # Let's stick to the list I made which covers all topics.
+        df_weather = get_weather_data()
+        df_elhub = get_elhub_data()
+        page_meteorology_correlation(df_weather, df_elhub)
+
+    elif selection == "7. Snow Drift":
+        df_weather = get_weather_data()
+        df_elhub = get_elhub_data()
+        page_snow_drift(df_weather, df_elhub)
+
+    elif selection == "8. Forecasting (SARIMAX)":
+        df_weather = get_weather_data()
+        df_elhub = get_elhub_data()
+        page_sarimax(df_elhub, df_weather)
+
+    elif selection == "9. Mongo Dashboard":
+        df = get_elhub_data()
+        page_mongo_dashboard(df)
+
+    elif selection == "10. About":
+        page_about()
 
 if __name__ == "__main__":
     main()

@@ -66,22 +66,43 @@ def page_stl_spectrogram(df_elhub):
     period = st.slider("STL seasonal period (days)", 7, 90, 30)
     stl = STL(df_daily["quantityKwh"], period=period, robust=True).fit()
 
-    # Plot STL decomposition
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_daily["startTime"], y=df_daily["quantityKwh"], name="Observed"))
-    fig.add_trace(go.Scatter(x=df_daily["startTime"], y=stl.trend, name="Trend"))
-    fig.add_trace(go.Scatter(x=df_daily["startTime"], y=stl.seasonal, name="Seasonal"))
-    fig.add_trace(go.Scatter(x=df_daily["startTime"], y=stl.resid, name="Residual"))
-    fig.update_layout(title=f"STL — {pg} ({pa})", template="plotly_white")
-    st.plotly_chart(fig, use_container_width=True)
+    from plotly.subplots import make_subplots
+    # Create Tabs
+    tab1, tab2 = st.tabs(["STL Decomposition", "Spectrogram Analysis"])
 
-    # Spectrogram
-    win = st.slider("Spectrogram window (nperseg)", 15, 90, 30)
-    f, t, Sxx = spectrogram(df_daily["quantityKwh"].values, fs=1, nperseg=win)
-    Sxx_db = 10 * np.log10(Sxx + 1e-12)
-    spec_fig = go.Figure(data=go.Heatmap(z=Sxx_db, x=t, y=f, colorscale="Viridis"))
-    spec_fig.update_layout(title="Spectrogram (daily series)", template="plotly_white")
-    st.plotly_chart(spec_fig, use_container_width=True)
+    with tab1:
+        st.subheader(f"STL Decomposition — {pg} ({pa})")
+        
+        from plotly.subplots import make_subplots
+        # Plot STL decomposition in 4 subplots
+        fig = make_subplots(
+            rows=4, cols=1, 
+            shared_xaxes=True, 
+            vertical_spacing=0.05,
+            subplot_titles=("Observed", "Trend", "Seasonal", "Residual")
+        )
+        
+        fig.add_trace(go.Scatter(x=df_daily["startTime"], y=df_daily["quantityKwh"], name="Observed"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df_daily["startTime"], y=stl.trend, name="Trend", line=dict(color="orange")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df_daily["startTime"], y=stl.seasonal, name="Seasonal", line=dict(color="green")), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df_daily["startTime"], y=stl.resid, name="Residual", line=dict(color="red")), row=4, col=1)
+        
+        fig.update_layout(
+            height=700, 
+            template="plotly_white", 
+            showlegend=False
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with tab2:
+        st.subheader("Spectrogram Analysis")
+        # Spectrogram
+        win = st.slider("Spectrogram window (nperseg)", 15, 90, 30)
+        f, t, Sxx = spectrogram(df_daily["quantityKwh"].values, fs=1, nperseg=win)
+        Sxx_db = 10 * np.log10(Sxx + 1e-12)
+        spec_fig = go.Figure(data=go.Heatmap(z=Sxx_db, x=t, y=f, colorscale="Viridis"))
+        spec_fig.update_layout(title="Spectrogram (daily series)", template="plotly_white")
+        st.plotly_chart(spec_fig, use_container_width=True)
 
 
 def page_outlier_anomaly(df_weather):
@@ -95,64 +116,141 @@ def page_outlier_anomaly(df_weather):
     # --- TAB 1 ---
     with tab1:
         st.subheader("Temperature Outlier Detection (SPC – DCT Method)")
-        freq_cutoff = st.slider("DCT Frequency Cutoff", 5, 200, 50)
-        n_std = st.slider("SPC Sigma Threshold (σ)", 1.0, 5.0, 2.0)
-        if "temperature_2m" in df_weather.columns:  # Updated column name here
-            df = df_weather.copy()
-            df["temperature_2m"] = df["temperature_2m"].interpolate().fillna(method='bfill')  # Updated column name here
-            temp = df["temperature_2m"].values
-            coeff = dct(temp, norm='ortho')
-            coeff[:int(freq_cutoff)] = 0
-            satv = idct(coeff, norm='ortho')
-            mean, std = np.mean(satv), np.std(satv)
-            upper, lower = mean + n_std * std, mean - n_std * std
-            df["outlier"] = (satv > upper) | (satv < lower)
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df.index, y=df["temperature_2m"],
-                                     mode="lines", name="Temperature (°C)",
-                                     line=dict(color="royalblue")))
-            fig.add_trace(go.Scatter(x=df.index, y=[upper]*len(df),
-                                     mode="lines", name="Upper Bound (+σ)",
-                                     line=dict(dash="dash", color="orange")))
-            fig.add_trace(go.Scatter(x=df.index, y=[lower]*len(df),
-                                     mode="lines", name="Lower Bound (-σ)",
-                                     line=dict(dash="dash", color="orange")))
-            fig.add_trace(go.Scatter(x=df.index[df["outlier"]],
-                                     y=df["temperature_2m"][df["outlier"]],
-                                     mode="markers", name="Outliers",
-                                     marker=dict(color="red", size=9, symbol="diamond")))
-            fig.update_layout(title="Temperature SPC Outlier Detection (DCT-based)",
-                              xaxis_title="Date", yaxis_title="Temperature (°C)",
-                              template="plotly_white", hovermode="x unified")
-            st.plotly_chart(fig, use_container_width=True)
-            st.success(f"Detected {df['outlier'].sum()} outliers from {len(df)} records.")
+        st.info("Method: Decompose Signal = Trend (Low Freq) + Noise (High Freq). SPC limits are applied to the Noise and added back to the Trend.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            freq_cutoff = st.slider("DCT Frequency Cutoff", 5, 200, 50, help="Higher = preserves more detail in 'Trend'. Lower = smoother Trend.")
+        with col2:
+            n_std = st.slider("SPC Sigma Threshold (σ)", 1.0, 5.0, 2.0)
+
+        # Use generic column name check or fallback
+        temp_col = "temperature_2m"
+        if temp_col not in df_weather.columns:
+            st.error(f"⚠️ Missing column: '{temp_col}'")
         else:
-            st.error("⚠️ Missing column: 'temperature_2m'")  # Updated column name here
+            df = df_weather.copy()
+            # Basic interpolation
+            df[temp_col] = df[temp_col].interpolate().fillna(method='bfill')
+            temp_vals = df[temp_col].values
+            
+            # --- DCT Processing ---
+            # 1. Transform to frequency domain
+            c = dct(temp_vals, norm='ortho')
+            
+            # 2. Separate Low Frequency (Trend) and High Frequency (Noise/SATV)
+            c_low = c.copy()
+            c_low[int(freq_cutoff):] = 0  # Zero out high freq components
+            trend = idct(c_low, norm='ortho')
+            
+            c_high = c.copy()
+            c_high[:int(freq_cutoff)] = 0 # Zero out low freq components
+            noise = idct(c_high, norm='ortho')
+            
+            # 3. Calculate Stats on the Noise component (seasonally adjusted)
+            mean_noise, std_noise = np.mean(noise), np.std(noise)
+            upper_limit_noise = mean_noise + n_std * std_noise
+            lower_limit_noise = mean_noise - n_std * std_noise
+            
+            # 4. Construct Boundaries (Trend + Noise Limits)
+            upper_bound = trend + upper_limit_noise
+            lower_bound = trend + lower_limit_noise
+            
+            # 5. Detect Outliers (where actual value exceeds boundaries)
+            # Equivalent to checking if noise is outside noise limits
+            df["outlier"] = (df[temp_col] > upper_bound) | (df[temp_col] < lower_bound)
+            num_outliers = df["outlier"].sum()
+
+            # --- Plotting ---
+            fig = go.Figure()
+            
+            # Raw Data
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[temp_col],
+                mode="lines", name="Temperature (°C)",
+                line=dict(color="royalblue", width=1)
+            ))
+            
+            # Trend (optional visual helper)
+            fig.add_trace(go.Scatter(
+                x=df.index, y=trend,
+                mode="lines", name="Trend (Low Poly)",
+                line=dict(color="yellow", width=2),
+                visible="legendonly"
+            ))
+            
+            # Upper Bound
+            fig.add_trace(go.Scatter(
+                x=df.index, y=upper_bound,
+                mode="lines", name=f"Upper (+{n_std}σ)",
+                line=dict(dash="dash", color="crimson", width=1)
+            ))
+            
+            # Lower Bound
+            fig.add_trace(go.Scatter(
+                x=df.index, y=lower_bound,
+                mode="lines", name=f"Lower (-{n_std}σ)",
+                line=dict(dash="dash", color="crimson", width=1)
+            ))
+            
+            # Outliers
+            if num_outliers > 0:
+                fig.add_trace(go.Scatter(
+                    x=df.index[df["outlier"]],
+                    y=df[temp_col][df["outlier"]],
+                    mode="markers", name="Outliers",
+                    marker=dict(color="red", size=6, symbol="x")
+                ))
+
+            fig.update_layout(
+                title="Temperature SPC Outlier Detection (Trend + Noise Limits)",
+                xaxis_title="Date", yaxis_title="Temperature (°C)",
+                template="plotly_white", hovermode="x unified",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.metric("Detected Outliers", f"{num_outliers} / {len(df)}")
+
 
     # --- TAB 2 ---
     with tab2:
         st.subheader("Precipitation Anomaly Detection (LOF)")
         contamination = st.slider("LOF Contamination Ratio", 0.001, 0.05, 0.01)
-        if "precipitation" in df_weather.columns:  # Updated column name here
+        precip_col = "precipitation"
+        
+        if precip_col in df_weather.columns:
             df = df_weather.copy()
-            df["precipitation"] = df["precipitation"].fillna(0)  # Updated column name here
+            df[precip_col] = df[precip_col].fillna(0)
+            
+            # LOF Modeling
             lof = LocalOutlierFactor(n_neighbors=20, contamination=contamination)
-            df["anomaly"] = lof.fit_predict(df[["precipitation"]]) == -1  # Updated column name here
+            # Reshape for sklearn
+            X = df[[precip_col]].values
+            df["anomaly"] = lof.fit_predict(X) == -1
+            num_anom = df["anomaly"].sum()
+
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df.index, y=df["precipitation"],
-                                     mode="lines", name="Normal Observations",
-                                     line=dict(color="royalblue")))
-            fig.add_trace(go.Scatter(x=df.index[df["anomaly"]],
-                                     y=df["precipitation"][df["anomaly"]],
-                                     mode="markers", name="Anomalies (LOF)",
-                                     marker=dict(color="red", size=9, symbol="diamond")))
-            fig.update_layout(title="Precipitation Anomalies — Local Outlier Factor (LOF)",
-                              xaxis_title="Date", yaxis_title="Precipitation (mm)",
-                              template="plotly_white", hovermode="x unified")
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[precip_col],
+                mode="lines", name="Precipitation",
+                line=dict(color="cornflowerblue")
+            ))
+            fig.add_trace(go.Scatter(
+                x=df.index[df["anomaly"]],
+                y=df[precip_col][df["anomaly"]],
+                mode="markers", name="Anomalies (LOF)",
+                marker=dict(color="red", size=8, symbol="circle-open", line=dict(width=2))
+            ))
+            fig.update_layout(
+                title=f"Precipitation Anomalies (LOF, cont={contamination})",
+                xaxis_title="Date", yaxis_title="Precipitation (mm)",
+                template="plotly_white", hovermode="x unified"
+            )
             st.plotly_chart(fig, use_container_width=True)
-            st.success(f"Detected {df['anomaly'].sum()} anomalies from {len(df)} observations.")
+            st.metric("Detected Anomalies", f"{num_anom} / {len(df)}")
         else:
-            st.error("⚠️ Missing column: 'precipitation'")  # Updated column name here
+            st.error(f"⚠️ Missing column: '{precip_col}'")
 
 
 # ---------------------------------------------------------------
