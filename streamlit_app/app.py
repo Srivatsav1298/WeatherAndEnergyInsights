@@ -1,36 +1,40 @@
-# Import necessary libraries
 import streamlit as st
-import pandas as pd
-import numpy as np
+from weather import Weather
+from energy import Energy
 
-# Define a function to fetch weather data
+# Weather and Energy Insights
 
-def fetch_weather_data(api_key: str, location: str) -> pd.DataFrame:
-    """Fetches weather data from the API and returns it as a DataFrame."""
-    try:
-        # Call the weather API
-        response = requests.get(f'http://api.weatherapi.com/v1/current.json?key={api_key}&q={location}')
-        response.raise_for_status()  # Raises an HTTPError for bad responses
-        data = response.json()
-        return pd.DataFrame(data)
-    except requests.exceptions.RequestException as e:
-        st.error(f'An error occurred: {e}')
-        return pd.DataFrame()  # Return an empty DataFrame on error
+class WeatherEnergyApp:
+    def __init__(self):
+        self.weather_service = Weather()
+        self.energy_service = Energy()
 
-# Define the main function for the Streamlit app
+    def run(self):
+        st.title("Weather and Energy Insights")
 
-def main() -> None:
-    """Main function to run the Streamlit app."""
-    st.title('Weather and Energy Insights')
-    st.sidebar.header('Input Parameters')
-    location = st.sidebar.text_input('Location', 'City, Country')
-    api_key = st.sidebar.text_input('API Key', 'Your_API_Key')
+        city = st.text_input("Enter City", "")
+        if city:
+            self.display_weather(city)
+            self.display_energy(city)
 
-    if st.sidebar.button('Get Weather Data'):
-        weather_data = fetch_weather_data(api_key, location)
-        if not weather_data.empty:
-            st.write(weather_data)
+    def display_weather(self, city: str) -> None:
+        try:
+            weather_data = self.weather_service.get_weather(city)
+            st.subheader("Weather Information")
+            st.write(f"Temperature: {weather_data['temp']} °C")
+            st.write(f"Condition: {weather_data['condition']}")
+        except Exception as e:
+            st.error(f"Error fetching weather data: {str(e)}")
 
-# Run the app
+    def display_energy(self, city: str) -> None:
+        try:
+            energy_data = self.energy_service.get_energy_data(city)
+            st.subheader("Energy Consumption")
+            st.write(f"Energy Usage: {energy_data['usage']} kWh")
+            st.write(f"Cost: ${energy_data['cost']}")
+        except Exception as e:
+            st.error(f"Error fetching energy data: {str(e)}")
+
 if __name__ == '__main__':
-    main()
+    app = WeatherEnergyApp()
+    app.run()
